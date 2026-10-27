@@ -125,7 +125,6 @@ export const completeDelivery = async (req: Request, res: Response) => {
 };
 
 export const mockOrders = async (req: Request, res: Response) => {
-    // แก้ไขพิกัดสุ่มให้อยู่ในโซน มมส. (เขตขามเรียง: พิกัดประมาณ 16.24xx, 103.25xx)
     const mockCustomers = [
         ['John', 'Doe', '0801111111', 16.2445, 103.2501],
         ['Jane', 'Smith', '0802222222', 16.2468, 103.2520],
@@ -134,23 +133,34 @@ export const mockOrders = async (req: Request, res: Response) => {
         ['Piti', 'Maneerat', '0805555555', 16.2490, 103.2515]
     ];
     try {
+        const insertedCustomerIds: number[] = [];
+        
+        // 1. สร้างลูกค้าและเก็บ ID จริงที่ได้จากฐานข้อมูลไว้
         for (const c of mockCustomers) {
-            await conn.execute(`INSERT INTO customers (firstname, lastname, phone, lat, lng) VALUES (?, ?, ?, ?, ?)`, c);
+            const [result]: any = await conn.execute(
+                `INSERT INTO customers (firstname, lastname, phone, lat, lng) VALUES (?, ?, ?, ?, ?)`, 
+                c
+            );
+            insertedCustomerIds.push(result.insertId);
         }
+
+        // 2. สุ่มสร้างออเดอร์โดยอ้างอิงจาก ID จริงที่มีอยู่ในระบบ
         for (let i = 0; i < 25; i++) {
-            const randomCustomerId = Math.floor(Math.random() * 5) + 1;
-            // สุ่มสั่งแค่ 1-5 กล่องต่อครั้ง เพื่อให้จัดกลุ่มลงกระเป๋าได้ง่ายขึ้น
-            const randomQty = Math.floor(Math.random() * 5) + 1;
+            // สุ่มเลือก ID จากลูกค้า 5 คนที่เพิ่งสร้าง
+            const randomIndex = Math.floor(Math.random() * insertedCustomerIds.length);
+            const actualCustomerId = insertedCustomerIds[randomIndex];
+            
+            const randomQty = Math.floor(Math.random() * 5) + 1; // สุ่ม 1-5 กล่อง
             const randomMinutesAgo = Math.floor(Math.random() * 1440);
             const orderDate = new Date(Date.now() - randomMinutesAgo * 60 * 1000)
                 .toISOString()
                 .slice(0, 19)
                 .replace('T', ' ');
             
-            await conn.execute(`INSERT INTO orders (customer_id, quantity, order_date) VALUES (?, ?, ?)`,
-                [randomCustomerId, randomQty, orderDate]);
+            await conn.execute(`INSERT INTO orders (customer_id, quantity, order_date, status) VALUES (?, ?, ?, 'pending')`,
+                [actualCustomerId, randomQty, orderDate]);
         }
-        res.json({ message: "สร้างข้อมูลจำลองในเขต มมส. สำเร็จ" });
+        res.json({ message: "สร้างข้อมูลจำลองสำเร็จ โดยอ้างอิงจาก ID ลูกค้าจริง" });
     } catch (err: any) {
         res.status(400).json({ error: err.message });
     }
