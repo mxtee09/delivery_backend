@@ -33,9 +33,11 @@ export const createOrder = async (req: Request, res: Response) => {
         }
 
         const [result]: any = await conn.execute(
-            `INSERT INTO orders (customer_id, quantity, status) VALUES (?, ?, 'pending')`,
+            `INSERT INTO orders (customer_id, quantity, order_date, status) VALUES (?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 7 HOUR, 'pending')`,
             [customer_id, quantity]
         );
+
+        
         res.json({ id: result.insertId, customer_id, quantity, status: 'pending' });
     } catch (err: any) {
         res.status(400).json({ error: err.message });
