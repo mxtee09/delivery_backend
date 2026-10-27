@@ -27,7 +27,7 @@ app.delete('/api/customers/:id', deleteCustomer);
 // Order Routes
 app.post('/api/orders', createOrder);
 app.get('/api/orders', getOrders);
-app.get('/api/orders/mock', mockOrders);
+app.post('/api/orders/mock', mockOrders);
 app.get('/api/orders/grouped', groupOrdersForRiders); // <--- 2. เพิ่มเส้นทางจัดเส้นทางไรเดอร์กลับมาที่นี่
 app.delete('/api/orders/clear-all', clearAllOrders);
 app.get('/api/orders/nearby', getNearbyOrders);

@@ -7,15 +7,15 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
     const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
 };
 
 export const createOrder = async (req: Request, res: Response) => {
     const { customer_id, quantity } = req.body;
-    
+
     // เงื่อนไข 3: ตรวจสอบเงื่อนไขจำนวนกล่องฝั่ง Server-side 
     if (!quantity || quantity < 1 || quantity > 3) {
         return res.status(400).json({ error: "สั่งได้ 1-3 กล่องต่อออเดอร์เท่านั้น" });
@@ -37,7 +37,7 @@ export const createOrder = async (req: Request, res: Response) => {
             [customer_id, quantity]
         );
 
-        
+
         res.json({ id: result.insertId, customer_id, quantity, status: 'pending' });
     } catch (err: any) {
         res.status(400).json({ error: err.message });
@@ -95,7 +95,7 @@ export const groupOrdersForRiders = async (req: Request, res: Response) => {
         if (assignedOrderIds.length > 0) {
             const placeholders = assignedOrderIds.map(() => '?').join(',');
             await conn.execute(
-                `UPDATE orders SET status = 'assigned' WHERE id IN (${placeholders})`, 
+                `UPDATE orders SET status = 'assigned' WHERE id IN (${placeholders})`,
                 assignedOrderIds
             );
         }
@@ -136,11 +136,11 @@ export const mockOrders = async (req: Request, res: Response) => {
     ];
     try {
         const insertedCustomerIds: number[] = [];
-        
+
         // 1. สร้างลูกค้าและเก็บ ID จริงที่ได้จากฐานข้อมูลไว้
         for (const c of mockCustomers) {
             const [result]: any = await conn.execute(
-                `INSERT INTO customers (firstname, lastname, phone, lat, lng) VALUES (?, ?, ?, ?, ?)`, 
+                `INSERT INTO customers (firstname, lastname, phone, lat, lng) VALUES (?, ?, ?, ?, ?)`,
                 c
             );
             insertedCustomerIds.push(result.insertId);
@@ -151,14 +151,14 @@ export const mockOrders = async (req: Request, res: Response) => {
             // สุ่มเลือก ID จากลูกค้า 5 คนที่เพิ่งสร้าง
             const randomIndex = Math.floor(Math.random() * insertedCustomerIds.length);
             const actualCustomerId = insertedCustomerIds[randomIndex];
-            
+
             const randomQty = Math.floor(Math.random() * 5) + 1; // สุ่ม 1-5 กล่อง
             const randomMinutesAgo = Math.floor(Math.random() * 1440);
             const orderDate = new Date(Date.now() - randomMinutesAgo * 60 * 1000)
                 .toISOString()
                 .slice(0, 19)
                 .replace('T', ' ');
-            
+
             await conn.execute(`INSERT INTO orders (customer_id, quantity, order_date, status) VALUES (?, ?, ?, 'pending')`,
                 [actualCustomerId, randomQty, orderDate]);
         }
