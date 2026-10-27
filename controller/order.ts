@@ -16,17 +16,27 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
 export const createOrder = async (req: Request, res: Response) => {
     const { customer_id, quantity } = req.body;
     
-    // ตรวจสอบเงื่อนไขกระเป๋าท้ายรถ: ห้ามสั่งเกิน 10 กล่องต่อออเดอร์
-    if (quantity > 10) {
-        return res.status(400).json({ error: "ไม่สามารถสั่งเกิน 10 กล่องได้ มอเตอร์ไซค์แบกหนักกว่านี้ไม่ได้ รถจะล้ม" });
+    // เงื่อนไข 3: ตรวจสอบเงื่อนไขจำนวนกล่องฝั่ง Server-side 
+    if (!quantity || quantity < 1 || quantity > 3) {
+        return res.status(400).json({ error: "สั่งได้ 1-3 กล่องต่อออเดอร์เท่านั้น" });
     }
 
     try {
+        // เงื่อนไข 4: ตรวจสอบลูกค้า/เบอร์โทรซ้ำภายใน "วันนี้"
+        const [existingOrders]: any = await conn.execute(`
+            SELECT id FROM orders 
+            WHERE customer_id = ? AND date(order_date) = date('now', 'localtime')
+        `, [customer_id]);
+
+        if (existingOrders && existingOrders.length > 0) {
+            return res.status(400).json({ error: "ลูกค้ารายนี้มีออเดอร์ของวันนี้ในระบบแล้ว ไม่สามารถสั่งซ้ำได้" });
+        }
+
         const [result]: any = await conn.execute(
-            `INSERT INTO orders (customer_id, quantity) VALUES (?, ?)`,
+            `INSERT INTO orders (customer_id, quantity, status) VALUES (?, ?, 'pending')`,
             [customer_id, quantity]
         );
-        res.json({ id: result.insertId, customer_id, quantity });
+        res.json({ id: result.insertId, customer_id, quantity, status: 'pending' });
     } catch (err: any) {
         res.status(400).json({ error: err.message });
     }
@@ -49,36 +59,66 @@ export const getOrders = async (req: Request, res: Response) => {
 // ฟังก์ชันใหม่: จัดกลุ่มออเดอร์ให้มอเตอร์ไซค์แต่ละคัน (คันละไม่เกิน 10 กล่อง)
 export const groupOrdersForRiders = async (req: Request, res: Response) => {
     try {
+        // เงื่อนไข 2: เลือกลงกระเป๋าเฉพาะออเดอร์ที่สถานะเป็น 'pending' (ยังไม่ถูกจ่ายงาน)
         const [rows]: any = await conn.execute(`
-            SELECT orders.id, orders.quantity, orders.order_date,
+            SELECT orders.id, orders.quantity, orders.order_date, orders.status,
                    customers.id as customer_id, customers.firstname, customers.lastname,
                    customers.lat, customers.lng
             FROM orders JOIN customers ON orders.customer_id = customers.id
+            WHERE orders.status = 'pending'
             ORDER BY orders.order_date ASC
         `);
 
+        if (rows.length === 0) {
+            return res.json({ message: "ไม่มีออเดอร์ใหม่ที่รอจัดเส้นทาง" });
+        }
+
         const riders: any[] = [];
         let currentRider = { rider_id: 1, total_quantity: 0, orders: [] as any[] };
+        const assignedOrderIds: number[] = []; // เก็บ ID ออเดอร์ที่จัดลงกระเป๋าแล้ว
 
         for (const order of rows) {
-            // ถ้ายัดกล่องเพิ่มแล้วเกิน 10 ให้ปิดกระเป๋าคันปัจจุบัน แล้วเรียกมอเตอร์ไซค์คันใหม่
+            // เงื่อนไข 3: รถ 1 คันห้ามเกิน 10 กล่อง (ตรวจสอบซ้ำฝั่ง Backend)
             if (currentRider.total_quantity + order.quantity > 10) {
-                if (currentRider.orders.length > 0) {
-                    riders.push(currentRider);
-                }
+                if (currentRider.orders.length > 0) riders.push(currentRider);
                 currentRider = { rider_id: riders.length + 1, total_quantity: 0, orders: [] };
             }
-            
             currentRider.orders.push(order);
             currentRider.total_quantity += order.quantity;
+            assignedOrderIds.push(order.id);
         }
-        
-        // อย่าลืม push คันสุดท้ายเข้ากลุ่ม
-        if (currentRider.orders.length > 0) {
-            riders.push(currentRider);
+        if (currentRider.orders.length > 0) riders.push(currentRider);
+
+        // เงื่อนไข 2: Concurrency Lock อัปเดตสถานะเป็น 'assigned' ทันทีเพื่อล็อกใบงานไม่ให้ดึงซ้ำ
+        if (assignedOrderIds.length > 0) {
+            const placeholders = assignedOrderIds.map(() => '?').join(',');
+            await conn.execute(
+                `UPDATE orders SET status = 'assigned' WHERE id IN (${placeholders})`, 
+                assignedOrderIds
+            );
         }
 
         res.json({ total_riders: riders.length, data: riders });
+    } catch (err: any) {
+        res.status(400).json({ error: err.message });
+    }
+};
+
+export const completeDelivery = async (req: Request, res: Response) => {
+    const orderId = req.params.id;
+    try {
+        const [check]: any = await conn.execute(`SELECT status FROM orders WHERE id = ?`, [orderId]);
+        if (check.length === 0) return res.status(404).json({ error: "ไม่พบออเดอร์" });
+        if (check[0].status === 'completed') return res.status(400).json({ error: "ออเดอร์นี้ถูกกดส่งสำเร็จไปแล้ว" });
+
+        // เงื่อนไข 1: บันทึกเวลาด้วย datetime ของฝั่ง Server ทันทีเมื่อยิง API ป้องกันการแก้ไขเวลาจากมือถือ
+        await conn.execute(`
+            UPDATE orders 
+            SET status = 'completed', delivered_at = datetime('now', 'localtime') 
+            WHERE id = ?
+        `, [orderId]);
+
+        res.json({ message: "ยืนยันการส่งสำเร็จพร้อมบันทึกเวลาจริงเรียบร้อยแล้ว" });
     } catch (err: any) {
         res.status(400).json({ error: err.message });
     }
