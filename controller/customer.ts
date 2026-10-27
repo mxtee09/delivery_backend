@@ -84,3 +84,12 @@ export const getNearbyCustomers = async (req: Request, res: Response) => {
         res.status(400).json({ error: err.message });
     }
 };
+
+export const clearAllCustomers = async (req: Request, res: Response) => {
+    try {
+        await conn.execute(`DELETE FROM customers`);
+        res.json({ message: "ลบข้อมูลลูกค้าทั้งหมดเรียบร้อยแล้ว" });
+    } catch (err: any) {
+        res.status(400).json({ error: err.message });
+    }
+};

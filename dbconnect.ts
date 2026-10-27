@@ -1,6 +1,6 @@
 import { createPool } from 'mysql2/promise';
 import * as dotenv from 'dotenv';
-dotenv.config(); // โหลดค่าจาก Environment Variables
+dotenv.config();
 
 export const conn = createPool({
     connectionLimit: 10,
@@ -9,7 +9,7 @@ export const conn = createPool({
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME || 'lunchbox',
-    // สำคัญมากสำหรับ Aiven
+    
     ssl: {
         rejectUnauthorized: false
     }
