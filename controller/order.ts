@@ -24,16 +24,16 @@ export const createOrder = async (req: Request, res: Response) => {
     try {
         // เงื่อนไข 4: ตรวจสอบลูกค้า/เบอร์โทรซ้ำภายใน "วันนี้"
         const [existingOrders]: any = await conn.execute(`
-            SELECT id FROM orders 
-            WHERE customer_id = ? AND date(order_date) = date('now', 'localtime')
-        `, [customer_id]);
+        SELECT id FROM orders 
+        WHERE customer_id = ? AND DATE(order_date) = CURDATE()
+    `, [customer_id]);
 
         if (existingOrders && existingOrders.length > 0) {
             return res.status(400).json({ error: "ลูกค้ารายนี้มีออเดอร์ของวันนี้ในระบบแล้ว ไม่สามารถสั่งซ้ำได้" });
         }
 
         const [result]: any = await conn.execute(
-            `INSERT INTO orders (customer_id, quantity, order_date, status) VALUES (?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 7 HOUR, 'pending')`,
+            `INSERT INTO orders (customer_id, quantity, order_date, status) VALUES (?, ?,NOW(), 'pending')`,
             [customer_id, quantity]
         );
 
