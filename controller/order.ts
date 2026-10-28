@@ -132,7 +132,10 @@ export const mockOrders = async (req: Request, res: Response) => {
         ['Jane', 'Smith', '0802222222', 16.2468, 103.2520],
         ['Somchai', 'Jaidee', '0803333333', 16.2480, 103.2495],
         ['Suda', 'Rakngam', '0804444444', 16.2455, 103.2530],
-        ['Piti', 'Maneerat', '0805555555', 16.2490, 103.2515]
+        ['Piti', 'Maneerat', '0805555555', 16.2490, 103.2515],
+        ['Team', 'Aphiwat', '0896674457', 16.2500, 103.2545],
+        ['Frame', 'Tepmoo', '0999088877', 16.2440, 103.2555],
+        ['Preem', 'Seemonk', '08012112574', 16.2475, 103.2525]
     ];
     try {
         const insertedCustomerIds: number[] = [];
@@ -148,19 +151,23 @@ export const mockOrders = async (req: Request, res: Response) => {
 
         // 2. สุ่มสร้างออเดอร์โดยอ้างอิงจาก ID จริงที่มีอยู่ในระบบ
         for (let i = 0; i < 25; i++) {
-            // สุ่มเลือก ID จากลูกค้า 5 คนที่เพิ่งสร้าง
+            // สุ่มลูกค้า
             const randomIndex = Math.floor(Math.random() * insertedCustomerIds.length);
             const actualCustomerId = insertedCustomerIds[randomIndex];
-
-            const randomQty = Math.floor(Math.random() * 5) + 1; // สุ่ม 1-5 กล่อง
+            
+            // แก้ไขบรรทัดนี้: เปลี่ยนจาก * 5 เป็น * 3 เพื่อให้ได้ค่า 1-3 กล่อง
+            const randomQty = Math.floor(Math.random() * 3) + 1; 
+            
             const randomMinutesAgo = Math.floor(Math.random() * 1440);
             const orderDate = new Date(Date.now() - randomMinutesAgo * 60 * 1000)
                 .toISOString()
                 .slice(0, 19)
                 .replace('T', ' ');
 
-            await conn.execute(`INSERT INTO orders (customer_id, quantity, order_date, status) VALUES (?, ?, ?, 'pending')`,
-                [actualCustomerId, randomQty, orderDate]);
+            await conn.execute(
+                `INSERT INTO orders (customer_id, quantity, order_date, status) VALUES (?, ?, ?, 'pending')`,
+                [actualCustomerId, randomQty, orderDate]
+            );
         }
         res.json({ message: "สร้างข้อมูลจำลองสำเร็จ โดยอ้างอิงจาก ID ลูกค้าจริง" });
     } catch (err: any) {
