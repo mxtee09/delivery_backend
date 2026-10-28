@@ -26,7 +26,7 @@ export const createCustomer = async (req: Request, res: Response) => {
     }
 };
 
-export const getCustomers = async (req: Request, res: Response) => {
+export const getCustomers = async (req: Request, res: Response): Promise<void> => {
     try {
         const [rows] = await conn.execute(`SELECT * FROM customers`);
         res.json(rows);
