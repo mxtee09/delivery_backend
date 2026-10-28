@@ -137,6 +137,7 @@ export const mockOrders = async (req: Request, res: Response) => {
         ['Frame', 'Tepmoo', '0999088877', 16.2440, 103.2555],
         ['Preem', 'Seemonk', '08012112574', 16.2475, 103.2525]
     ];
+    //sadf
     try {
         const insertedCustomerIds: number[] = [];
 
